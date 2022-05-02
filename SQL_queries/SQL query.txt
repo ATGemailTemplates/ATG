@@ -1,0 +1,184 @@
+we need SQL query for these users
+1. user no login within 60 days
+2. user no login within 14 days, but logged in within 28 days.
+3. user no login within 3 days, but logged in within 7 days(multiple times).
+4. business users who have posted internships
+5. business users who have not posted any internship
+6. business users who have posted >1 internship but not within last 30 days
+7. (a) New Student accounts within 3 days
+    (b) students who had signed up in last month and have not applied to a single internship
+8. New Professional accounts within 3 days
+9. New business accounts within 3 days
+10. (a) Students who have applied for internships in last 1 week and were NOT hired
+      (b) Students who have applied for internships atleast once and had been hired more than 1 month ago.
+      (c) Students who have not applied for internships within last 1 week at all and have no history of being hired.
+
+
+1. no login within 60 days
+OMAR
+SELECT user.first_name, user.last_name, user.email,user.mob_no, loc.updated_at as last_login_at, DATEDIFF(CURRENT_TIMESTAMP, loc.updated_at) as DAYS FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 60 DAY ORDER BY `DAYS` ASC
+
+bassi sir changes
+SELECT user.* FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 60 DAY
+
+2. no login within 14 days, but logged in within 28 days.
+OMAR
+SELECT user.first_name, user.last_name, user.email,user.mob_no, loc.updated_at as last_login_at, DATEDIFF(CURRENT_TIMESTAMP, loc.updated_at) as DAYS FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 14 DAY AND loc.updated_at > CURRENT_TIMESTAMP - INTERVAL 28 DAY ORDER BY `DAYS` DESC
+
+bassi sir changes
+SELECT user.* FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 14 DAY AND loc.updated_at > CURRENT_TIMESTAMP - INTERVAL 28 DAY;
+
+3. user no login within 3 days, but logged in within 7 days(multiple times).
+OMAR
+SELECT users.* FROM `p1036_trans_user_locations` AS loc
+	JOIN p1036_mst_users as users on users.id = loc.user_id    
+    WHERE EXISTS ( 
+        SELECT * FROM p1036_trans_user_location_history AS loc_his 
+        	WHERE users.id = loc_his.user_id AND loc_his.updated_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY AND loc_his.updated_at < CURRENT_TIMESTAMP - INTERVAL 3 DAY 
+        	GROUP BY user_id HAVING COUNT(*) > 1
+    ) AND loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 3 DAY AND loc.updated_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY
+
+4. business users who have posted internships
+OMAR
+SELECT users.* FROM p1036_mst_users as users WHERE EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and job_det.employment_type = 3) and users.user_type=4
+
+5. business users who have not posted any internship
+OMAR
+SELECT users.* FROM p1036_mst_users as users WHERE NOT EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and job_det.employment_type = 3) and users.user_type=4
+
+6. business users who have posted >1 internship but not within last 30 days
+OMAR
+SELECT users.* FROM p1036_mst_users AS users 
+	WHERE EXISTS ( 
+        SELECT * FROM p1036_posts AS posts where type="job" AND posts.created_at<CURRENT_TIMESTAMP - INTERVAL 30 DAY AND EXISTS(SELECT * FROM p1036_post_job_details AS job_det WHERE posts.id = job_det.post_id AND job_det.employment_type=3) AND NOT EXISTS(SELECT * FROM p1036_posts as posts WHERE type="job" AND posts.created_at>CURRENT_TIMESTAMP - INTERVAL 30 DAY AND users.id = posts.user_id)
+	AND posts.user_id=users.id HAVING cOUNT(*)>1
+    ) 
+    AND users.user_type=4
+
+7. (a) New Student accounts within 3 days
+SHUBHAMOY
+SELECT * FROM p1036_mst_users   where created_at >CURRENT_TIMESTAMP -INTERVAL 3 DAY and user_type=1
+
+7. (b).
+SELECT user.* FROM p1036_mst_users as user where NOT EXISTS(select * from p1036_trans_user_applicant_to_job as applicant_job join p1036_post_job_details as job_details on applicant_job.job_id_fk=job_details.post_id where applicant_job.user_id_fk = user.id AND job_details.employment_type=3 ) AND  DATEPART(m, user.created_at) = DATEPART(m, DATEADD(m,-1, getdate())) 
+AND
+DATEPART(yyyy, created_at) = DATEPART(yyyy, DATEADD(m,-1, getdate())
+AND user.user_type = 1;
+
+8.
+SELECT * FROM p1036_mst_users   where created_at <CURRENT_TIMESTAMP -INTERVAL 3 DAY and user_type=3
+
+9.
+SELECT * FROM p1036_mst_users   where created_at <CURRENT_TIMESTAMP -INTERVAL 3 DAY and user_type=4
+
+10 a.
+SELECT user.* FROM p1036_mst_users as user where EXISTS(select * from p1036_trans_user_applicant_to_job as applicant_job join p1036_post_job_details as job_details on applicant_job.job_id_fk=job_details.post_id where applicant_job.user_id_fk = user.id AND job_details.employment_type=3 AND NOT ANY job_details.application_status = 2 
+AND job_details.created_at>CURRENT_TIMESTAMP -INTERVAL 7 DAY AND job_details.created_at<CURRENT_TIMESTAMP -INTERVAL 14 DAY ) AND  
+AND user.user_type = 1;
+
+10.b.
+SELECT user.* FROM p1036_mst_users as user where EXISTS(select * from p1036_trans_user_applicant_to_job as applicant_job join p1036_post_job_details as job_details on applicant_job.job_id_fk=job_details.post_id where applicant_job.user_id_fk = user.id AND job_details.employment_type=3 AND job_details.application_status = 2 
+AND job_details.created_at>CURRENT_TIMESTAMP -INTERVAL 30 DAY )
+AND user.user_type = 1;
+
+10.c.
+SELECT user.* FROM p1036_mst_users as user where EXISTS(select * from p1036_trans_user_applicant_to_job as applicant_job join p1036_post_job_details as job_details on applicant_job.job_id_fk=job_details.post_id where applicant_job.user_id_fk = user.id AND job_details.employment_type=3 AND NOT ANY job_details.application_status = 2 AND ANY job_details.created_at<CURRENT_TIMESTAMP -INTERVAL 7 DAY
+)
+AND user.user_type = 1;
+
+11)NEW (< 14 days) STUDENTS ONLY with no login within 3 days, but logged in within 7 days (frequency every 7 days)
+ARIB
+
+SELECT user.* FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 3 DAY AND loc.updated_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY AND 
+user.id IN ( SELECT id FROM p1036_mst_users   where created_at > CURRENT_TIMESTAMP -INTERVAL 14 DAY and user_type=2);
+
+12)OLD (>7 days) STUDENTS -> no login within 3 days, but logged in within 7 days (frequency every 7 days)
+ARIB
+
+SELECT user.* FROM p1036_trans_user_locations as loc join p1036_mst_users as user on user.id = loc.user_id WHERE loc.updated_at < CURRENT_TIMESTAMP - INTERVAL 3 DAY AND loc.updated_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY AND 
+user.id IN ( SELECT id FROM p1036_mst_users   where created_at < CURRENT_TIMESTAMP -INTERVAL 7 DAY and user_type=2);
+
+13. any user who have posted their first internship within the last 3 days
+ARIB
+
+SELECT users.* FROM p1036_mst_users AS users
+	WHERE EXISTS (
+        SELECT * FROM p1036_posts AS posts where type="job" AND status="publish" AND posts.created_at>CURRENT_TIMESTAMP - INTERVAL 4 DAY AND EXISTS(SELECT * FROM p1036_post_job_details AS job_det WHERE posts.id = job_det.post_id AND job_det.employment_type=3)
+	AND posts.user_id=users.id HAVING cOUNT(*) = 1
+    );
+
+14.
+a)New business users who have signed up in the last 7 days (yet to post internship) - EVERY 7 DAYs
+ARIB
+
+SELECT users.* FROM p1036_mst_users AS users
+	WHERE NOT EXISTS (
+        SELECT * FROM p1036_posts AS posts where type="job" AND status="publish"  AND posts.created_at>CURRENT_TIMESTAMP - INTERVAL 7 DAY AND EXISTS(SELECT * FROM p1036_post_job_details AS job_det WHERE posts.id = job_det.post_id AND job_det.employment_type=3)
+	AND posts.user_id=users.id HAVING cOUNT(*) > 0
+    ) AND users.created_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY AND users.user_type = 4;
+
+b) Any business user who have signed up atleast more than 7 days ago (yet to post internship) - EVERY 30 days
+ARIB
+
+SELECT users.* FROM p1036_mst_users AS users
+	WHERE NOT EXISTS (
+        SELECT * FROM p1036_posts AS posts where type="job" AND status="publish" AND posts.created_at>CURRENT_TIMESTAMP - INTERVAL 7 DAY AND EXISTS(SELECT * FROM p1036_post_job_details AS job_det WHERE posts.id = job_det.post_id AND job_det.employment_type=3)
+	AND posts.user_id=users.id HAVING cOUNT(*) > 0
+    ) AND users.created_at < CURRENT_TIMESTAMP - INTERVAL 7 DAY AND users.user_type = 4;
+
+15. students who signedd up in last 1 year
+
+SELECT * FROM p1036_mst_users WHERE created_at > CURRENT_TIMESTAMP - INTERVAL 1 YEAR and user_type=2;
+
+
+
+1. any user who have posted their first internship within the last 3 days
+2. New business users who have signed up in the last 7 days (yet to post internship)
+3. Any business user who have signed up atleast more than 7 days ago (yet to post internship)
+4. any user who have posted an internship within the last 24 hours
+5. users who have posted an internship within the last 3 days
+6. users who have posted an internship in last 7 days but have received less than 20 applications on any of their internships
+7. business users who have posted >1 internship but not within last 30 days
+
+
+1)any user who have posted their first internship within the last 3 days
+OMAR
+
+select users.* from p1036_posts as posts join p1036_mst_users as users on users.id = posts.user_id where type="job" and status = "publish" and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 3 DAY and not exists(select * from p1036_posts as p join p1036_post_job_details as jd on jd.post_id = p.id where user_id = users.id and p.created_at < CURRENT_TIMESTAMP - INTERVAL 3 DAY and jd.employment_type = 3) group by users.id
+
+2) New business users who have signed up in the last 7 days (yet to post internship)
+OMAR
+
+SELECT users.* FROM p1036_mst_users as users WHERE users.created_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY AND NOT EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3) and users.user_type='4'
+
+3) Any business user who have signed up atleast more than 7 days ago (yet to post internship)
+OMAR
+
+SELECT users.* FROM p1036_mst_users as users WHERE users.created_at < CURRENT_TIMESTAMP - INTERVAL 7 DAY AND NOT EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3) and users.user_type='4'
+
+4) any user who have posted an internship within the last 24 hours
+OMAR
+
+SELECT users.* FROM p1036_mst_users as users WHERE EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3 and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 1 DAY)
+	
+5) users who have posted an internship within the last 3 days
+OMAR
+
+SELECT users.* FROM p1036_mst_users as users WHERE EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3 and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 3 DAY)
+
+6) users who have posted an internship in last 7 days but have received less than 20 applications on any of their internships
+OMAR
+	
+SELECT users.* FROM p1036_mst_users as users WHERE EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3 and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY and Exists(select * from p1036_trans_user_applicant_to_job as applications where applications.job_id_fk = posts.id and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 7 DAY group by applications.job_id_fk having count(*) < 20))
+
+7) business users who have posted >1 internship but not within last 30 days
+OMAR
+	
+SELECT users.* FROM p1036_mst_users as users WHERE users.user_type = '4' and NOT EXISTS ( select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3 and posts.created_at > CURRENT_TIMESTAMP - INTERVAL 30 DAY) and EXISTS(select * from p1036_post_job_details as job_det join p1036_posts as posts on posts.id = job_det.post_id where posts.user_id = users.id and posts.status="publish" and job_det.employment_type = 3 and posts.created_at < CURRENT_TIMESTAMP - INTERVAL 30 DAY)
+
+
+
+
+1) users who have active job posts on the platform
+
+select * from p1036_mst_users where id in (select user_id from p1036_posts p left join p1036_post_job_details on p.id=post_id where status="publish" and application_deadline>=curdate())
